@@ -60,9 +60,13 @@ class KeyResetTemplatePartial(
     SecretKeyTemplatePartial,
 ):
 
-    def dispatch(self, request, *args, **kwargs):
+#    def dispatch(self, request, *args, **kwargs):
+#        self.storage.clear_secret_key()
+#        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
         self.storage.clear_secret_key()
-        return super().dispatch(request, *args, **kwargs)
+        return super().get(request, *args, **kwargs)
 
 
 ###################

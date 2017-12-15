@@ -15,6 +15,8 @@ from wizard_builder import view_helpers as wizard_builder_helpers
 
 logger = logging.getLogger(__name__)
 
+class _MockReport:
+    uuid = None
 
 class ReportStepsHelper(
     wizard_builder_helpers.StepsHelper,
@@ -35,21 +37,25 @@ class SecretKeyStorageHelper(object):
     def __init__(self, view):
         self.view = view  # TODO: scope down input
 
-    def set_secret_key(self, key):
-        self.view.request.session['secret_key'] = key
+#    def set_secret_key(self, key):
+#        self.view.request.session['secret_key'] = key
 
-    def clear_secret_key(self):
-        if self.view.request.session.get('secret_key'):
-            del self.view.request.session['secret_key']
+#    def clear_secret_key(self):
+#        if self.view.request.session.get('secret_key'):
+#            del self.view.request.session['secret_key']
 
     @property
     def secret_key(self) -> str:
-        return self.view.request.session.get('secret_key')
+        secret_keys = self.view.request.session.get('secret_keys', {})
+        return secret_keys.get(str(self.report.uuid), '')
+#    def secret_key(self) -> str:
+#        return self.view.request.session.get('secret_key')
 
 
-class _ReportStorageHelper(
-    SecretKeyStorageHelper,
-):
+#class _ReportStorageHelper(
+#    SecretKeyStorageHelper,
+#):
+    
 
     @property
     def report(self):
@@ -57,19 +63,29 @@ class _ReportStorageHelper(
             return self.view.report
         except BaseException:
             # TODO: catch models.Report.DoesNotExist ?
-            return None
+            #return None
+            return _MockReport
 
     @property
     def decrypted_report(self) -> dict:
         return self.report.decrypted_report(self.secret_key)
 
-    @property
-    def report_and_key_present(self) -> bool:
-        return bool(self.secret_key and getattr(self, 'report', None))
+#    @property
+#    def report_and_key_present(self) -> bool:
+#        return bool(self.secret_key and getattr(self, 'report', None))
+    def set_secret_key(self, key, report=None):
+        if not report:
+            report = self.report
+        secret_keys = self.view.request.session.get('secret_keys', {})
+        secret_keys[str(report.uuid)] = key
+        self.view.request.session['secret_keys'] = secret_keys
 
+    def clear_secret_key(self):
+        if self.view.request.session.get('secret_keys'):
+            del self.view.request.session['secret_keys']
 
 class _LegacyReportStorageHelper(
-    _ReportStorageHelper,
+    SecretKeyStorageHelper,
 ):
 
     def _initialize_storage(self):
@@ -108,7 +124,7 @@ class EncryptedReportStorageHelper(
     storage_data_key = 'data'  # TODO: remove
 
     def current_data_from_storage(self) -> dict:
-        if self.report_and_key_present:
+        if self.secret_key:
             return self.report.decrypted_report(self.secret_key)
         else:
             return {
@@ -117,11 +133,11 @@ class EncryptedReportStorageHelper(
             }
 
     def add_data_to_storage(self, data):
-        if self.report_and_key_present:
+        if self.secret_key:
             storage = self.current_data_from_storage()
             storage[self.storage_data_key] = data
             self.report.encrypt_report(storage, self.secret_key)
 
     def init_storage(self):
-        if self.report_and_key_present:
+        if self.secret_key:
             self._initialize_storage()
